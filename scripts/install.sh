@@ -16,7 +16,7 @@ echo "=== Installing NAM Module ==="
 
 # Deploy to Move - audio_fx subdirectory
 echo "Copying module to Move..."
-ssh ableton@move.local "mkdir -p /data/UserData/move-anything/modules/audio_fx/nam/models"
+ssh ableton@move.local "mkdir -p /data/UserData/move-anything/modules/audio_fx/nam/models /data/UserData/move-anything/modules/audio_fx/nam/cabs"
 scp -r dist/nam/* ableton@move.local:/data/UserData/move-anything/modules/audio_fx/nam/
 
 # Install chain presets if they exist
@@ -35,4 +35,5 @@ echo "=== Install Complete ==="
 echo "Module installed to: /data/UserData/move-anything/modules/audio_fx/nam/"
 echo ""
 echo "Place .nam model files in: /data/UserData/move-anything/modules/audio_fx/nam/models/"
+echo "Place .wav cab IR files in: /data/UserData/move-anything/modules/audio_fx/nam/cabs/"
 echo "Restart Move Anything to load the new module."
