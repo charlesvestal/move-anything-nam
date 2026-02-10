@@ -8,15 +8,6 @@ Neural Amp Modeler audio effect module for Move Anything, based on [NeuralAudio]
 
 ## Installation
 
-### Via Module Store (Recommended)
-
-1. Launch Move Anything on your Move
-2. Select **Module Store** from the main menu
-3. Navigate to **Audio FX** → **NAM**
-4. Select **Install**
-
-### Manual Installation
-
 ```bash
 ./scripts/install.sh
 ```
