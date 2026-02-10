@@ -4,7 +4,7 @@
   "abbrev": "NA",
   "version": "0.1.0",
   "description": "Neural Amp Modeler - neural network guitar amp/effect emulation",
-  "author": "Mike Oliphant (port: charlesvestal)",
+  "author": "NeuralAudio by Mike Oliphant (port: charlesvestal)",
   "license": "MIT",
   "dsp": "nam.so",
   "api_version": 2,
