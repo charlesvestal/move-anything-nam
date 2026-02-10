@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Build NAM module for Move Anything (ARM64)
+#
+# Two-phase build:
+#   1. Build NeuralAudio as a static library via CMake cross-compilation
+#   2. Compile nam_plugin.cpp and link against libNeuralAudio.a
+#
+# Automatically uses Docker for cross-compilation if needed.
+# Set CROSS_PREFIX to skip Docker (e.g., for native ARM builds).
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+IMAGE_NAME="move-anything-nam-builder"
+
+# Check if we need Docker
+if [ -z "$CROSS_PREFIX" ] && [ ! -f "/.dockerenv" ]; then
+    echo "=== NAM Module Build (via Docker) ==="
+    echo ""
+
+    # Build Docker image if needed
+    if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
+        echo "Building Docker image (first time only)..."
+        docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
+        echo ""
+    fi
+
+    # Run build inside container
+    echo "Running build..."
+    docker run --rm \
+        -v "$REPO_ROOT:/build" \
+        -u "$(id -u):$(id -g)" \
+        -w /build \
+        "$IMAGE_NAME" \
+        ./scripts/build.sh
+
+    echo ""
+    echo "=== Done ==="
+    exit 0
+fi
+
+# === Actual build (runs in Docker or with cross-compiler) ===
+CROSS_PREFIX="${CROSS_PREFIX:-aarch64-linux-gnu-}"
+
+cd "$REPO_ROOT"
+
+echo "=== Building NAM Module ==="
+echo "Cross prefix: $CROSS_PREFIX"
+
+# Create build directories
+mkdir -p build/neuralaudio
+mkdir -p dist/nam
+
+# --- Phase 1: Build NeuralAudio static library via CMake ---
+echo ""
+echo "--- Phase 1: Building NeuralAudio static library ---"
+
+# Create CMake toolchain file for cross-compilation
+cat > build/aarch64-toolchain.cmake << 'TOOLCHAIN_EOF'
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+TOOLCHAIN_EOF
+
+cmake -S deps/NeuralAudio -B build/neuralaudio \
+    -DCMAKE_TOOLCHAIN_FILE="$REPO_ROOT/build/aarch64-toolchain.cmake" \
+    -DCMAKE_CXX_STANDARD=20 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_FLAGS="-Ofast -march=armv8-a -mtune=cortex-a72 -DNDEBUG" \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DBUILD_UTILS=OFF \
+    -DBUILD_NAMCORE=OFF \
+    -DBUILD_STATIC_RTNEURAL=OFF \
+    -DWAVENET_FRAMES=128 \
+    -DBUFFER_PADDING=8
+
+cmake --build build/neuralaudio -j"$(nproc)"
+
+echo "NeuralAudio static library built."
+
+# --- Phase 2: Compile NAM plugin and link ---
+echo ""
+echo "--- Phase 2: Compiling NAM plugin ---"
+
+# Find the static libraries we need to link
+NA_LIB="build/neuralaudio/NeuralAudio/libNeuralAudio.a"
+RT_LIB="build/neuralaudio/NeuralAudio/RTNeural/libRTNeural.a"
+MA_LIB="build/neuralaudio/NeuralAudio/math_approx/libmath_approx.a"
+
+# Verify they exist
+for lib in "$NA_LIB" "$RT_LIB"; do
+    if [ ! -f "$lib" ]; then
+        echo "ERROR: Expected library not found: $lib"
+        echo "Build directory contents:"
+        find build/neuralaudio -name "*.a" 2>/dev/null
+        exit 1
+    fi
+done
+
+${CROSS_PREFIX}g++ -Ofast -shared -fPIC \
+    -std=c++20 \
+    -march=armv8-a -mtune=cortex-a72 \
+    -fomit-frame-pointer -fno-stack-protector \
+    -DNDEBUG \
+    -DNAM_SAMPLE_FLOAT \
+    -DDSP_SAMPLE_FLOAT \
+    -DLSTM_MATH=FastMath \
+    -DWAVENET_MATH=FastMath \
+    -DWAVENET_MAX_NUM_FRAMES=128 \
+    -DLAYER_ARRAY_BUFFER_PADDING=8 \
+    src/dsp/nam_plugin.cpp \
+    -o build/nam.so \
+    -Isrc/dsp \
+    -Ideps/NeuralAudio \
+    -Ideps/NeuralAudio/deps/RTNeural/modules/Eigen \
+    -Ideps/NeuralAudio/deps/RTNeural/modules/json/single_include \
+    -Ideps/NeuralAudio/deps/RTNeural \
+    -Ideps/NeuralAudio/deps/math_approx/include \
+    -Ideps/NeuralAudio/deps/RTNeural-NAM/wavenet \
+    "$NA_LIB" \
+    "$RT_LIB" \
+    -lm -lpthread
+
+echo "Plugin compiled: build/nam.so"
+
+# --- Package ---
+echo ""
+echo "--- Packaging ---"
+
+cat src/module.json > dist/nam/module.json
+cat build/nam.so > dist/nam/nam.so
+chmod +x dist/nam/nam.so
+
+# Include bundled models if any exist
+if [ -d "src/models" ] && [ "$(ls -A src/models 2>/dev/null)" ]; then
+    mkdir -p dist/nam/models
+    cp src/models/* dist/nam/models/
+fi
+
+# Create tarball for release
+cd dist
+tar -czvf nam-module.tar.gz nam/
+cd ..
+
+echo ""
+echo "=== Build Complete ==="
+echo "Output: dist/nam/"
+echo "Tarball: dist/nam-module.tar.gz"
+echo ""
+echo "To install on Move:"
+echo "  ./scripts/install.sh"
