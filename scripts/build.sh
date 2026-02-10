@@ -88,18 +88,20 @@ echo "--- Phase 2: Compiling NAM plugin ---"
 
 # Find the static libraries we need to link
 NA_LIB="build/neuralaudio/NeuralAudio/libNeuralAudio.a"
-RT_LIB="build/neuralaudio/NeuralAudio/RTNeural/libRTNeural.a"
-MA_LIB="build/neuralaudio/NeuralAudio/math_approx/libmath_approx.a"
+RT_LIB=$(find build/neuralaudio -name "libRTNeural.a" | head -1)
 
-# Verify they exist
-for lib in "$NA_LIB" "$RT_LIB"; do
-    if [ ! -f "$lib" ]; then
-        echo "ERROR: Expected library not found: $lib"
-        echo "Build directory contents:"
-        find build/neuralaudio -name "*.a" 2>/dev/null
-        exit 1
-    fi
-done
+if [ ! -f "$NA_LIB" ]; then
+    echo "ERROR: NeuralAudio library not found: $NA_LIB"
+    find build/neuralaudio -name "*.a" 2>/dev/null
+    exit 1
+fi
+if [ -z "$RT_LIB" ] || [ ! -f "$RT_LIB" ]; then
+    echo "ERROR: RTNeural library not found"
+    find build/neuralaudio -name "*.a" 2>/dev/null
+    exit 1
+fi
+echo "Found NeuralAudio: $NA_LIB"
+echo "Found RTNeural: $RT_LIB"
 
 ${CROSS_PREFIX}g++ -Ofast -shared -fPIC \
     -std=c++20 \
@@ -116,11 +118,14 @@ ${CROSS_PREFIX}g++ -Ofast -shared -fPIC \
     -o build/nam.so \
     -Isrc/dsp \
     -Ideps/NeuralAudio \
+    -Ideps/NeuralAudio/NeuralAudio \
     -Ideps/NeuralAudio/deps/RTNeural/modules/Eigen \
+    -Ideps/NeuralAudio/deps/RTNeural/modules/json \
     -Ideps/NeuralAudio/deps/RTNeural/modules/json/single_include \
     -Ideps/NeuralAudio/deps/RTNeural \
     -Ideps/NeuralAudio/deps/math_approx/include \
     -Ideps/NeuralAudio/deps/RTNeural-NAM/wavenet \
+    -Ideps/NeuralAudio/deps/NeuralAmpModelerCore \
     "$NA_LIB" \
     "$RT_LIB" \
     -lm -lpthread
