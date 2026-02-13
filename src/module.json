@@ -2,7 +2,7 @@
   "id": "nam",
   "name": "NAM",
   "abbrev": "NA",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Neural Amp Modeler - neural network guitar amp/effect emulation",
   "author": "NeuralAudio by Mike Oliphant (port: charlesvestal)",
   "license": "MIT",
@@ -18,11 +18,23 @@
           "params": [
             "input_level",
             "output_level",
-            {"key": "cab_bypass", "label": "Cab Bypass"},
-            {"level": "models", "label": "Choose Model"},
-            {"level": "cabs", "label": "Choose Cabinet"}
+            {
+              "key": "cab_bypass",
+              "label": "Cab Bypass"
+            },
+            {
+              "level": "models",
+              "label": "Choose Model"
+            },
+            {
+              "level": "cabs",
+              "label": "Choose Cabinet"
+            }
           ],
-          "knobs": ["input_level", "output_level"]
+          "knobs": [
+            "input_level",
+            "output_level"
+          ]
         },
         "models": {
           "label": "Model",
@@ -75,7 +87,9 @@
   "assets": {
     "path": "models",
     "label": "Models",
-    "extensions": [".nam"],
+    "extensions": [
+      ".nam"
+    ],
     "allowFolders": true,
     "description": "Upload .nam model files. Free models at tonehunt.org and tone3000.com. Cabinet IRs (.wav) go in the cabs/ folder."
   }
