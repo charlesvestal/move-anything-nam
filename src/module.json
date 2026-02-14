@@ -85,12 +85,15 @@
     ]
   },
   "assets": {
-    "path": "models",
-    "label": "Models",
+    "path": ".",
+    "label": "Assets",
     "extensions": [
-      ".nam"
+      ".nam",
+      ".wav",
+      ".ir"
     ],
     "allowFolders": true,
-    "description": "Upload .nam model files. Free models at tonehunt.org and tone3000.com. Cabinet IRs (.wav) go in the cabs/ folder."
+    "ensure_dirs": ["models", "cabs"],
+    "description": "Manage NAM models (.nam) and cabinet IRs (.wav)"
   }
 }
